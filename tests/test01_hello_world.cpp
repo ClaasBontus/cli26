@@ -1,5 +1,5 @@
-#include <cli26.hpp>
 #include <print>
+#include <cli26.hpp>
 
 struct
 [[=CLI26::app_name("Hello World")]]
@@ -12,7 +12,7 @@ Options
 int main(int argc, char **argv)
 {
     Options options;
-    CLI26::App app;
+    CLI::App app;
     CLI26::get_app(app, options);
     CLI11_PARSE(app, argc, argv);
 
