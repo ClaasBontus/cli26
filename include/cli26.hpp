@@ -2,6 +2,7 @@
 
 #include <string>
 #include <string_view>
+#include <optional>
 #include <meta>
 #include <print>
 #include <CLI11.hpp>
@@ -11,6 +12,15 @@ namespace CLI26 {
 
     
     namespace details {
+        template <typename T>
+        struct is_optional : std::false_type {};
+
+        template <typename T>
+        struct is_optional<std::optional<T>> : std::true_type {};
+
+        template <typename T>
+        inline constexpr bool is_optional_v = is_optional<T>::value;
+
         struct StrWrapper
         {
             const char *text;
@@ -19,7 +29,15 @@ namespace CLI26 {
         struct AppName: StrWrapper {};
 
         struct OptionDescription: StrWrapper {};
+        struct OptionName: StrWrapper {};
         struct CaptureDefaultStr {};
+        struct AsOption {};
+        struct AsFlag {};
+
+        struct ExpectedParams {
+            int value_min, value_max;
+            bool two_args;
+        };
 
         struct StructChars {
             std::string type_name;
@@ -30,7 +48,11 @@ namespace CLI26 {
         struct OptionAnnotations {
             std::string identifier;
             std::string description;
+            std::string name;
             bool capture_default_str = false;
+            bool as_option = false;
+            bool as_flag = false;
+            std::optional<ExpectedParams> expected_params;
         }; // struct OptionAnnotations
 
         template <typename T>
@@ -67,9 +89,27 @@ namespace CLI26 {
                     constexpr auto value = std::meta::extract<OptionDescription>(anno);
                     o_anno.description = value.text;
                 }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^OptionName)))
+                {
+                    constexpr auto value = std::meta::extract<OptionName>(anno);
+                    o_anno.name = value.text;
+                }
                 if constexpr (std::define_static_array(annotations_of_with_type(member, ^^CaptureDefaultStr)).size() > 0)
                 {
                     o_anno.capture_default_str = true;
+                }
+                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^AsOption)).size() > 0)
+                {
+                    o_anno.as_option = true;
+                }
+                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^AsFlag)).size() > 0)
+                {
+                    o_anno.as_flag = true;
+                }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^ExpectedParams)))
+                {
+                    constexpr auto value = std::meta::extract<ExpectedParams>(anno);
+                    o_anno.expected_params = value;
                 }
                 all_annotations.push_back(o_anno);
             }
@@ -105,22 +145,35 @@ namespace CLI26 {
                 constexpr auto mt = type_of(member);
                 // constexpr std::string_view tname = display_string_of(mt);
                 auto option_name = [&] {
+                    if (!option_annotations.name.empty())
+                    return std::string(option_annotations.name);
                     if constexpr (identifier.length() == 1)
                         return std::string("-") + std::string(identifier);
                     return std::string("--") + std::string(identifier);
                 }();
-
+                constexpr bool member_is_optional = is_optional_v<typename[:mt:]>;
+                constexpr bool member_is_bool = std::is_same_v<typename[:mt:], bool>;
+                
                 CLI::Option *opt;
-                if constexpr (!has_default_argument(member) && std::is_same_v<typename[:mt:], bool>) {
+                if ((member_is_bool && !option_annotations.as_option) || option_annotations.as_flag) {
                     opt = app.add_flag(option_name, options.[:member:], option_annotations.description);
                 } else {
                     opt = app.add_option(option_name, options.[:member:], option_annotations.description);
-                    if constexpr (!has_default_argument(member) && !std::is_same_v<typename[:mt:], bool>) {
+                    if (!has_default_member_initializer(member) && !member_is_optional) {
                         opt->required();
                     }
                 }
                 if (option_annotations.capture_default_str) {
                     opt->capture_default_str();
+                }
+                if (option_annotations.expected_params.has_value()) {
+                    auto &ep = option_annotations.expected_params.value();
+                    if (ep.two_args) {
+                        opt->expected(ep.value_min, ep.value_max);
+                    }
+                    else {
+                        opt->expected(ep.value_min);
+                    }
                 }
                 ++index;
             }
@@ -143,8 +196,24 @@ namespace CLI26 {
     {
         return {std::define_static_string(s)};
     }
-    consteval details::CaptureDefaultStr
-    capture_default_str() { return {}; }
+    consteval details::OptionName
+    option_name(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::ExpectedParams
+    expected(int value)
+    {
+        return {value, value, false};
+    }
+    consteval details::ExpectedParams
+    expected(int value_min, int value_max)
+    {
+        return {value_min, value_max, true};
+    }
+    inline constexpr details::CaptureDefaultStr capture_default_str{};
+    inline constexpr details::AsOption as_option{};
+    inline constexpr details::AsFlag as_flag{};
 
 
 

@@ -1,5 +1,6 @@
 #include <meta>
 #include <format>
+#include <optional>
 #include <print>
 
 // Taken from
@@ -75,3 +76,15 @@ struct UniversalFormatter
     }
 };
 
+template<typename T>
+struct std::formatter<std::optional<T>> : std::formatter<T>
+{
+    auto format(const std::optional<T>& value, auto& ctx) const
+    {
+        if (value)
+        {
+            return std::formatter<T>::format(*value, ctx);
+        }
+        return std::format_to(ctx.out(), "nullopt");
+    }
+};

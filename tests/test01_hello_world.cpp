@@ -4,15 +4,16 @@
 #include "formatter.hpp"
 
 struct
-[[=CLI26::app_name("Hello World")]]
+[[=CLI26::app_name("test01_hello_world")]]
 [[=CLI26::app_description("Hello World App")]]
 Options
 {
-    [[=CLI26::option_description("Example for a bool flag")]]
-    bool f;
+    [[=CLI26::option_name("-f,--flag")]]
+    [[=CLI26::option_description("Example of a bool flag")]]
+    bool f{false};
 
-    [[=CLI26::option_description("Example for an optional int option with default value")]]
-    [[=CLI26::capture_default_str()]]
+    [[=CLI26::option_description("Example of an optional int option with default value")]]
+    [[=CLI26::capture_default_str]]
     int count = -1;
 };
 
