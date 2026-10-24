@@ -13,7 +13,7 @@ Options
     bool f{false};
 
     [[=CLI26::option_description("Example of an optional int option with default value")]]
-    [[=CLI26::capture_default_str]]
+    [[=CLI26::params(CLI26::capture_default_str)]]
     int count = -1;
 };
 

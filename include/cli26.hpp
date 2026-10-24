@@ -10,8 +10,10 @@
 namespace CLI26 {
     using App = CLI::App;
 
-    
+
     namespace details {
+
+        /// @section Concepts and type traits
         template <typename T>
         struct is_optional : std::false_type {};
 
@@ -21,23 +23,60 @@ namespace CLI26 {
         template <typename T>
         inline constexpr bool is_optional_v = is_optional<T>::value;
 
-        struct StrWrapper
-        {
-            const char *text;
-        }; // struct StrWrapper
-        struct AppDescription: StrWrapper {};
-        struct AppName: StrWrapper {};
+        struct Flags;
 
-        struct OptionDescription: StrWrapper {};
-        struct OptionName: StrWrapper {};
-        struct CaptureDefaultStr {};
-        struct AsOption {};
-        struct AsFlag {};
+        template <typename T>
+        concept HasSetFlag = std::is_class_v<T> && requires(T t, Flags &flags) {
+            t.set_flag(flags);
+        };
 
+
+        /// @section Helper structs
+
+        /// @brief Collection of booleans which can be set via annotations.
+        /// @note The flag name usually correspond to CLI11 function names that set the respective behavior.
+        struct Flags {
+            bool capture_default_str = false;
+            bool as_option = false;
+            bool as_flag = false;
+            bool ignore_case = false;
+            bool ignore_underscore = false;
+
+            /// @brief Update (member-wise logical OR) the flags with another Flags object
+            /// @param other The other Flags object to update from
+            /// Performs a logical OR on each boolean member of the Flags struct.
+            void update(const Flags &other) {
+                constexpr auto access_ctx = std::meta::access_context::current();
+                template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^Flags, access_ctx))) {
+                    if constexpr (!has_identifier(member) || !std::is_same_v<typename[:type_of(member):], bool>)
+                        continue;
+                    (*this).[:member:] |= other.[:member:];
+                }
+            } // update
+        }; // struct Flags
+
+        /// @brief Parameters used for CLI11-function 'expected'
         struct ExpectedParams {
             int value_min, value_max;
             bool two_args;
         };
+
+        /// @brief Summarizes annotations specified for an option
+        struct OptionAnnotations {
+            std::string identifier;  ///< The name of the variable associated with the option
+            std::string description;
+            std::string name;
+            std::string label;  ///< The label used to reference the option
+            std::vector<std::string> needs;
+            std::vector<std::string> excludes;
+            std::optional<char> delimiter;
+            int allow_extra_args = 2; // unset
+            Flags flags;
+            bool ignore = false;
+            std::optional<ExpectedParams> expected_params;
+            //
+            CLI::Option *cli_option = nullptr;
+        }; // struct OptionAnnotations
 
         struct StructChars {
             std::string type_name;
@@ -45,16 +84,60 @@ namespace CLI26 {
             std::string app_name;
         }; // struct StructChars
 
-        struct OptionAnnotations {
-            std::string identifier;
-            std::string description;
-            std::string name;
-            bool capture_default_str = false;
-            bool as_option = false;
-            bool as_flag = false;
-            std::optional<ExpectedParams> expected_params;
-        }; // struct OptionAnnotations
 
+        /// @section Annotation tags
+
+        struct StrWrapper
+        {
+            const char *text;
+        };
+        struct AppDescription: StrWrapper {};
+        struct AppName: StrWrapper {};
+
+        struct OptionDescription: StrWrapper {};
+        struct OptionName: StrWrapper {};
+        struct Label: StrWrapper {};
+        struct Needs: StrWrapper {};
+        struct Excludes: StrWrapper {};
+        struct Delimiter {
+            char value;
+        };
+        struct AllowExtraArgs {
+            bool value;
+        };
+        struct CaptureDefaultStr {
+            constexpr void set_flag(Flags &flags) const {
+                flags.capture_default_str = true;
+            }
+        };
+        struct AsOption {
+            constexpr void set_flag(Flags &flags) const {
+                flags.as_option = true;
+            }
+        };
+        struct AsFlag {
+            constexpr void set_flag(Flags &flags) const {
+                flags.as_flag = true;
+            }
+        };
+        struct IgnoreCase {
+            constexpr void set_flag(Flags &flags) const {
+                flags.ignore_case = true;
+            }
+        };
+        struct IgnoreUnderscore {
+            constexpr void set_flag(Flags &flags) const {
+                flags.ignore_underscore = true;
+            }
+        };
+        struct Ignore {};
+
+
+        /// @section Functions
+
+        /// @brief Analyzes annotations of struct T
+        /// @tparam T The type of the struct to analyze annotations from
+        /// @return A StructChars object containing the extracted information
         template <typename T>
         StructChars get_struct_chars() {
             StructChars chars;
@@ -75,6 +158,19 @@ namespace CLI26 {
             return chars;
         } // get_struct_chars<T>
 
+        using MapOptT = std::map<std::string, CLI::Option*>;
+
+        void insert_option_by_label(MapOptT &map_opt, const std::string &label, CLI::Option *opt) {
+            if (auto it = map_opt.find(label); it != map_opt.end()) {
+                if (it->second == opt) return;
+                throw std::runtime_error("Option with label '" + label + "' already exists.");
+            }
+            map_opt[label] = opt;
+        } // insert_option_by_label
+
+        /// @brief Steps through all non-static data members of struct T and collects information from their annotations
+        /// @tparam T The type of the struct to analyze
+        /// @return A vector of OptionAnnotations containing the collected information
         template <typename T>
         std::vector<OptionAnnotations> get_all_option_annotations() {
             constexpr auto access_ctx = std::meta::access_context::current();
@@ -84,6 +180,14 @@ namespace CLI26 {
                     continue;
                 OptionAnnotations o_anno;
                 o_anno.identifier = identifier_of(member);
+                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^Ignore)).size() > 0) {
+                    o_anno.ignore = true;
+                }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Flags)))
+                {
+                    constexpr auto value = std::meta::extract<Flags>(anno);
+                    o_anno.flags.update(value);
+                }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^OptionDescription)))
                 {
                     constexpr auto value = std::meta::extract<OptionDescription>(anno);
@@ -94,31 +198,44 @@ namespace CLI26 {
                     constexpr auto value = std::meta::extract<OptionName>(anno);
                     o_anno.name = value.text;
                 }
-                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^CaptureDefaultStr)).size() > 0)
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Label)))
                 {
-                    o_anno.capture_default_str = true;
+                    constexpr auto value = std::meta::extract<Label>(anno);
+                    o_anno.label = value.text;
                 }
-                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^AsOption)).size() > 0)
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Needs)))
                 {
-                    o_anno.as_option = true;
+                    constexpr auto value = std::meta::extract<Needs>(anno);
+                    o_anno.needs.push_back(value.text);
                 }
-                if constexpr (std::define_static_array(annotations_of_with_type(member, ^^AsFlag)).size() > 0)
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Excludes)))
                 {
-                    o_anno.as_flag = true;
+                    constexpr auto value = std::meta::extract<Excludes>(anno);
+                    o_anno.excludes.push_back(value.text);
                 }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^ExpectedParams)))
                 {
                     constexpr auto value = std::meta::extract<ExpectedParams>(anno);
                     o_anno.expected_params = value;
                 }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Delimiter)))
+                {
+                    constexpr auto value = std::meta::extract<Delimiter>(anno);
+                    o_anno.delimiter = value.value;
+                }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^AllowExtraArgs)))
+                {
+                    constexpr auto value = std::meta::extract<AllowExtraArgs>(anno);
+                    o_anno.allow_extra_args = int(value.value);
+                }
                 all_annotations.push_back(o_anno);
             }
             return all_annotations;
         } // get_all_option_annotations
 
-        OptionAnnotations const &
-        get_option_annotations(std::string_view identifier, unsigned int index,
-                               std::vector<OptionAnnotations> const &all_annotations) {
+        OptionAnnotations &
+        find_option_annotation(std::string_view identifier, unsigned int index,
+                               std::vector<OptionAnnotations> &all_annotations) {
             if (index < all_annotations.size() && all_annotations[index].identifier == identifier)
                 return all_annotations[index];
             for (auto &anno : all_annotations) {
@@ -127,12 +244,45 @@ namespace CLI26 {
                 }
             }
             throw std::runtime_error("Option annotation not found for identifier: " + std::string(identifier));
-        } // get_option_annotations
+        } // find_option_annotation
 
+        /// @brief Calls needs and excludes functions on CLI options based on annotations
+        /// @param map_opt Labels associated with CLI option pointers
+        /// @param option_annotations Vector containing all option annotations
+        void set_needs_excludes(MapOptT &map_opt, std::vector<OptionAnnotations> const &option_annotations) {
+            for (auto const &anno : option_annotations) {
+                if (anno.ignore)
+                    continue;
+                for (auto const &need : anno.needs) {
+                    auto trgt_opt = map_opt.find(need);
+                    if (trgt_opt == map_opt.end())
+                        throw std::runtime_error("Needs label not found: " + need + " for option: " + anno.identifier);
+                    auto ptr = anno.cli_option;
+                    if (!ptr)
+                        throw std::runtime_error("(needs) CLI option pointer is null for option: " + anno.identifier);
+                    anno.cli_option->needs(trgt_opt->second);
+                }
+                for (auto const &exclude : anno.excludes) {
+                    auto trgt_opt = map_opt.find(exclude);
+                    if (trgt_opt == map_opt.end())
+                        throw std::runtime_error("Excludes label not found: " + exclude + " for option: " + anno.identifier);
+                    auto ptr = anno.cli_option;
+                    if (!ptr)
+                        throw std::runtime_error("(excludes) CLI option pointer is null for option: " + anno.identifier);
+                    ptr->excludes(trgt_opt->second);
+                }
+            }
+        } // set_needs_excludes
+
+        /// @brief Steps through all non-static data members of the options struct T and configures the CLI::App instance accordingly
+        /// @tparam T The type of the options struct
+        /// @param app The CLI::App instance to configure
+        /// @param options The options struct to populate with parsed values
         template <typename T>
         void parse_options(CLI::App &app, T &options) {
             constexpr auto access_ctx = std::meta::access_context::current();
             auto all_annotations = get_all_option_annotations<T>();
+            MapOptT map_opt;
             unsigned int index = 0;
             template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^T, access_ctx)))
             {
@@ -140,8 +290,10 @@ namespace CLI26 {
                     continue;
 
                 constexpr std::string_view identifier = identifier_of(member);
-                OptionAnnotations option_annotations = get_option_annotations(identifier, index, all_annotations);
-                
+                OptionAnnotations &option_annotations = find_option_annotation(identifier, index, all_annotations);
+                if (option_annotations.ignore)
+                    continue;
+
                 constexpr auto mt = type_of(member);
                 // constexpr std::string_view tname = display_string_of(mt);
                 auto option_name = [&] {
@@ -153,9 +305,9 @@ namespace CLI26 {
                 }();
                 constexpr bool member_is_optional = is_optional_v<typename[:mt:]>;
                 constexpr bool member_is_bool = std::is_same_v<typename[:mt:], bool>;
-                
+
                 CLI::Option *opt;
-                if ((member_is_bool && !option_annotations.as_option) || option_annotations.as_flag) {
+                if ((member_is_bool && !option_annotations.flags.as_option) || option_annotations.flags.as_flag) {
                     opt = app.add_flag(option_name, options.[:member:], option_annotations.description);
                 } else {
                     opt = app.add_option(option_name, options.[:member:], option_annotations.description);
@@ -163,8 +315,24 @@ namespace CLI26 {
                         opt->required();
                     }
                 }
-                if (option_annotations.capture_default_str) {
+                option_annotations.cli_option = opt;
+                if (!option_annotations.label.empty()) {
+                    insert_option_by_label(map_opt, option_annotations.label, opt);
+                }
+                if (option_annotations.flags.capture_default_str) {
                     opt->capture_default_str();
+                }
+                if (option_annotations.flags.ignore_case) {
+                    opt->ignore_case();
+                }
+                if (option_annotations.flags.ignore_underscore) {
+                    opt->ignore_underscore();
+                }
+                if (option_annotations.delimiter.has_value()) {
+                    opt->delimiter(option_annotations.delimiter.value());
+                }
+                if (option_annotations.allow_extra_args < 2) {
+                    opt->allow_extra_args(bool(option_annotations.allow_extra_args));
                 }
                 if (option_annotations.expected_params.has_value()) {
                     auto &ep = option_annotations.expected_params.value();
@@ -177,8 +345,13 @@ namespace CLI26 {
                 }
                 ++index;
             }
+            // Now that we know all labels, we can set the needs and excludes relationships for each option
+            set_needs_excludes(map_opt, all_annotations);
         } // parse_options<T>
     } // namespace details
+
+
+    /// @section Annotation functions and tags
 
     consteval details::AppDescription
     app_description(std::string_view s)
@@ -201,6 +374,31 @@ namespace CLI26 {
     {
         return {std::define_static_string(s)};
     }
+    consteval details::Label
+    label(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::Needs
+    needs(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::Excludes
+    excludes(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::Delimiter
+    delimiter(char c)
+    {
+        return {c};
+    }
+    consteval details::AllowExtraArgs
+    allow_extra_args(bool value)
+    {
+        return {value};
+    }
     consteval details::ExpectedParams
     expected(int value)
     {
@@ -214,8 +412,19 @@ namespace CLI26 {
     inline constexpr details::CaptureDefaultStr capture_default_str{};
     inline constexpr details::AsOption as_option{};
     inline constexpr details::AsFlag as_flag{};
+    inline constexpr details::IgnoreCase ignore_case{};
+    inline constexpr details::IgnoreUnderscore ignore_underscore{};
+    inline constexpr details::Ignore ignore{};
+
+    template <details::HasSetFlag... T>
+    inline constexpr auto params(T... t) {
+        details::Flags flags{};
+        (t.set_flag(flags), ...);
+        return flags;
+    }
 
 
+    /// @section Main
 
     template <typename T>
     void get_app(CLI::App &app, T &options)

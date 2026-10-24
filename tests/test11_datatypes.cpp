@@ -6,38 +6,53 @@
 
 #include "formatter.hpp"
 
+using namespace CLI26;
+
 struct
-[[=CLI26::app_description("Test various datatypes")]]
+[[=app_description("Test various datatypes")]]
 Options
 {
-    [[=CLI26::as_option]]
-    [[=CLI26::option_description("Required boolean")]]
+    [[=params(as_option, ignore_case, ignore_underscore)]]
+    [[=option_description("Required boolean")]]
     bool colored;
 
-    [[=CLI26::as_flag]]
-    [[=CLI26::option_name("-v,--verbose")]]
-    [[=CLI26::option_description("Int used as flag")]]
+    [[=params(as_flag)]]
+    [[=option_name("-v,--verbose")]]
+    [[=option_description("Int used as flag")]]
     int verbose;
 
-    [[=CLI26::option_description("Unsigned integer 64 bit")]]
+    [[=option_description("Unsigned integer 64 bit")]]
     uint64_t count;
 
-    [[=CLI26::option_description("String")]]
+    [[=option_description("String")]]
     std::string name;
 
-    [[=CLI26::option_description("Vector of integers")]]
+    [[=option_description("Vector of integers")]]
     std::vector<int> values;
 
-    [[=CLI26::expected(1, 3)]]
-    [[=CLI26::option_description("Optional vector of strings with 1 to 3 elements")]]
+    [[=expected(1, 3)]]
+    [[=option_description("Optional vector of strings with 1 to 3 elements")]]
     std::vector<std::string> tags = {};
 
-    [[=CLI26::expected(2)]]
-    [[=CLI26::option_description("Vector of doubles with 2 expected elements")]]
+    [[=expected(2)]]
+    [[=delimiter(',')]]
+    [[=option_description("Vector of doubles with 2 expected elements separated by comma")]]
     std::vector<double> numbers;
 
-    [[=CLI26::option_description("Optional integer value")]]
+    [[=delimiter(',')]]
+    [[=allow_extra_args(false)]]
+    [[=option_description("Vector of strings with comma delimiter and no extra args")]]
+    std::vector<std::string> args;
+
+    [[=option_description("Optional integer value")]]
     std::optional<int> oval;
+
+    [[=option_name("pos1")]]
+    [[=option_description("Positional argument")]]
+    std::string path="";
+
+    [[=ignore]]
+    double ignored_value;
 };
 
 template <> struct std::formatter<Options> : UniversalFormatter { };
