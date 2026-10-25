@@ -14,6 +14,7 @@ namespace CLI26 {
     namespace details {
 
         /// @section Concepts and type traits
+
         template <typename T>
         struct is_optional : std::false_type {};
 
@@ -66,6 +67,7 @@ namespace CLI26 {
             std::string identifier;  ///< The name of the variable associated with the option
             std::string description;
             std::string name;
+            std::string envname;
             std::string label;  ///< The label used to reference the option
             std::vector<std::string> needs;
             std::vector<std::string> excludes;
@@ -97,6 +99,7 @@ namespace CLI26 {
 
         struct OptionDescription: StrWrapper {};
         struct OptionName: StrWrapper {};
+        struct EnvName: StrWrapper {};
         struct Label: StrWrapper {};
         struct Needs: StrWrapper {};
         struct Excludes: StrWrapper {};
@@ -199,6 +202,11 @@ namespace CLI26 {
                 {
                     constexpr auto value = std::meta::extract<OptionName>(anno);
                     o_anno.name = value.text;
+                }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^EnvName)))
+                {
+                    constexpr auto value = std::meta::extract<EnvName>(anno);
+                    o_anno.envname = value.text;
                 }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Label)))
                 {
@@ -327,6 +335,9 @@ namespace CLI26 {
                 if (!option_annotations.label.empty()) {
                     insert_option_by_label(map_opt, option_annotations.label, opt);
                 }
+                if (!option_annotations.envname.empty()) {
+                    opt->envname(option_annotations.envname);
+                }
                 if (option_annotations.flags.capture_default_str) {
                     opt->capture_default_str();
                 }
@@ -382,6 +393,11 @@ namespace CLI26 {
     }
     consteval details::OptionName
     option_name(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::EnvName
+    envname(std::string_view s)
     {
         return {std::define_static_string(s)};
     }
