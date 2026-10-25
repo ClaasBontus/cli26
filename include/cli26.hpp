@@ -74,6 +74,7 @@ namespace CLI26 {
             Flags flags;
             bool ignore = false;
             std::optional<ExpectedParams> expected_params;
+            std::optional<std::string> group;
             //
             CLI::Option *cli_option = nullptr;
         }; // struct OptionAnnotations
@@ -99,6 +100,7 @@ namespace CLI26 {
         struct Label: StrWrapper {};
         struct Needs: StrWrapper {};
         struct Excludes: StrWrapper {};
+        struct Group: StrWrapper {};
         struct Delimiter {
             char value;
         };
@@ -213,6 +215,11 @@ namespace CLI26 {
                     constexpr auto value = std::meta::extract<Excludes>(anno);
                     o_anno.excludes.push_back(value.text);
                 }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Group)))
+                {
+                    constexpr auto value = std::meta::extract<Group>(anno);
+                    o_anno.group = value.text;
+                }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^ExpectedParams)))
                 {
                     constexpr auto value = std::meta::extract<ExpectedParams>(anno);
@@ -290,6 +297,7 @@ namespace CLI26 {
                     continue;
 
                 constexpr std::string_view identifier = identifier_of(member);
+                // std::println("Processing member: {}", identifier);
                 OptionAnnotations &option_annotations = find_option_annotation(identifier, index, all_annotations);
                 if (option_annotations.ignore)
                     continue;
@@ -333,6 +341,9 @@ namespace CLI26 {
                 }
                 if (option_annotations.allow_extra_args < 2) {
                     opt->allow_extra_args(bool(option_annotations.allow_extra_args));
+                }
+                if (option_annotations.group.has_value()) {
+                    opt->group(option_annotations.group.value());
                 }
                 if (option_annotations.expected_params.has_value()) {
                     auto &ep = option_annotations.expected_params.value();
@@ -386,6 +397,11 @@ namespace CLI26 {
     }
     consteval details::Excludes
     excludes(std::string_view s)
+    {
+        return {std::define_static_string(s)};
+    }
+    consteval details::Group
+    group(std::string_view s)
     {
         return {std::define_static_string(s)};
     }
