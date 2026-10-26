@@ -38,6 +38,17 @@ Options
     [[=params(as_flag)]]
     [[=option_name("-1{1},-2{2},-3{3},-4{4},-5{5},-6{6}, -7{7}, -8{8}, -9{9}")]]
     int compression_level=0;
+
+    [[=option_description("Real flag based on an integer")]]
+    [[=params(as_flag)]]
+    [[=option_name("-r")]]
+     [[=multi_option_policy(CLI::MultiOptionPolicy::TakeLast)]]
+    int real_flag=0;
+
+    [[=option_description("Double flag")]]
+    [[=params(as_flag)]]
+    [[=option_name("-d")]]
+    double ini_pi=3.14;
 };
 
 template <> struct std::formatter<Options> : UniversalFormatter { };

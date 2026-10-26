@@ -68,15 +68,21 @@ namespace CLI26 {
             std::string description;
             std::string name;
             std::string envname;
+            //
             std::string label;  ///< The label used to reference the option
+            //
             std::vector<std::string> needs;
             std::vector<std::string> excludes;
+            //
             std::optional<char> delimiter;
             int allow_extra_args = 2; // unset
             Flags flags;
-            bool ignore = false;
+            //
             std::optional<ExpectedParams> expected_params;
             std::optional<std::string> group;
+            std::optional<CLI::MultiOptionPolicy> multi_option_policy;
+            //
+            bool ignore = false;
             //
             CLI::Option *cli_option = nullptr;
         }; // struct OptionAnnotations
@@ -104,6 +110,9 @@ namespace CLI26 {
         struct Needs: StrWrapper {};
         struct Excludes: StrWrapper {};
         struct Group: StrWrapper {};
+        struct MultiOptionPolicy {
+            CLI::MultiOptionPolicy policy;
+        };
         struct Delimiter {
             char value;
         };
@@ -227,6 +236,11 @@ namespace CLI26 {
                 {
                     constexpr auto value = std::meta::extract<Group>(anno);
                     o_anno.group = value.text;
+                }
+                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^MultiOptionPolicy)))
+                {
+                    constexpr auto value = std::meta::extract<MultiOptionPolicy>(anno);
+                    o_anno.multi_option_policy = value.policy;
                 }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^ExpectedParams)))
                 {
@@ -367,6 +381,9 @@ namespace CLI26 {
                 if (option_annotations.group.has_value()) {
                     opt->group(option_annotations.group.value());
                 }
+                if (option_annotations.multi_option_policy.has_value()) {
+                    opt->multi_option_policy(option_annotations.multi_option_policy.value());
+                }
                 if (option_annotations.expected_params.has_value()) {
                     auto &ep = option_annotations.expected_params.value();
                     if (ep.two_args) {
@@ -431,6 +448,11 @@ namespace CLI26 {
     group(std::string_view s)
     {
         return {std::define_static_string(s)};
+    }
+    consteval details::MultiOptionPolicy
+    multi_option_policy(CLI::MultiOptionPolicy value)
+    {
+        return {value};
     }
     consteval details::Delimiter
     delimiter(char c)

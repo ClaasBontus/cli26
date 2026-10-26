@@ -88,3 +88,12 @@ struct std::formatter<std::optional<T>> : std::formatter<T>
         return std::format_to(ctx.out(), "nullopt");
     }
 };
+
+template<typename T>
+struct std::formatter<std::complex<T>> : std::formatter<T>
+{
+    auto format(const std::complex<T>& value, auto& ctx) const
+    {
+        return std::format_to(ctx.out(), "{}+i{}", value.real(), value.imag());
+    }
+};

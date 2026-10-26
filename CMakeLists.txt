@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 
+
+# Build instructions:
+#
+# cmake -S . -B build
+# cmake --build build -j
+
+
 if(NOT DEFINED CMAKE_CXX_COMPILER)
     find_program(CMAKE_CXX_COMPILER NAMES g++-16 g++ REQUIRED)
 endif()

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <complex>
 #include <cli26.hpp>
 
 #include "formatter.hpp"
@@ -50,6 +51,10 @@ Options
     [[=option_name("pos1")]]
     [[=option_description("Positional argument")]]
     std::string path="";
+
+    [[=option_name("--complex")]]
+    [[=option_description("Complex number")]]
+    std::complex<double> complex_value={0.0, 0.0};
 
     [[=ignore]]
     double ignored_value;
