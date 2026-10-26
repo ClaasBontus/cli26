@@ -46,7 +46,7 @@ namespace CLI26 {
             /// @brief Update (member-wise logical OR) the flags with another Flags object
             /// @param other The other Flags object to update from
             /// Performs a logical OR on each boolean member of the Flags struct.
-            void update(const Flags &other) {
+            constexpr void update(const Flags &other) {
                 constexpr auto access_ctx = std::meta::access_context::current();
                 template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^Flags, access_ctx))) {
                     if constexpr (!has_identifier(member) || !std::is_same_v<typename[:type_of(member):], bool>)
@@ -321,11 +321,22 @@ namespace CLI26 {
                 }();
                 constexpr bool member_is_optional = is_optional_v<typename[:mt:]>;
                 constexpr bool member_is_bool = std::is_same_v<typename[:mt:], bool>;
+                constexpr bool member_can_be_flag = std::is_arithmetic_v<typename[:mt:]> && requires {
+                    app.add_flag(option_name, options.[:member:], option_annotations.description);
+                };
 
                 CLI::Option *opt;
-                if ((member_is_bool && !option_annotations.flags.as_option) || option_annotations.flags.as_flag) {
-                    opt = app.add_flag(option_name, options.[:member:], option_annotations.description);
-                } else {
+                bool option_added_as_flag = false;
+                if constexpr (member_can_be_flag) {
+                    if ((member_is_bool && !option_annotations.flags.as_option) || option_annotations.flags.as_flag) {
+                        opt = app.add_flag(option_name, options.[:member:], option_annotations.description);
+                        option_added_as_flag = true;
+                    }
+                }
+                if (!option_added_as_flag) {
+                    if (option_annotations.flags.as_flag) {
+                        throw std::runtime_error("Option type does not support flags: " + std::string(identifier));
+                    }
                     opt = app.add_option(option_name, options.[:member:], option_annotations.description);
                     if (!has_default_member_initializer(member) && !member_is_optional) {
                         opt->required();
