@@ -42,6 +42,7 @@ namespace CLI26 {
             bool as_flag = false;
             bool ignore_case = false;
             bool ignore_underscore = false;
+            bool required = false;
 
             /// @brief Update (member-wise logical OR) the flags with another Flags object
             /// @param other The other Flags object to update from
@@ -56,11 +57,18 @@ namespace CLI26 {
             } // update
         }; // struct Flags
 
-        /// @brief Parameters used for CLI11-function 'expected'
-        struct ExpectedParams {
-            int value_min, value_max;
+        /// @brief A struct that represents either one or two values of type T
+        template <typename T>
+        struct OneOrTwo {
+            T value_min, value_max;
             bool two_args;
         };
+
+        /// @brief Parameters used for CLI11-function 'expected'
+        struct ExpectedParams: OneOrTwo<int> {};
+
+        /// @brief Parameters used for CLI11-function 'require_option'
+        struct RequireOption: OneOrTwo<int> {};
 
         /// @brief Summarizes annotations specified for an option
         struct OptionAnnotations {
@@ -100,6 +108,11 @@ namespace CLI26 {
         {
             const char *text;
         };
+        struct TwoStrWrapper
+        {
+            const char *text1;
+            const char *text2;
+        };
         struct AppDescription: StrWrapper {};
         struct AppName: StrWrapper {};
 
@@ -110,6 +123,7 @@ namespace CLI26 {
         struct Needs: StrWrapper {};
         struct Excludes: StrWrapper {};
         struct Group: StrWrapper {};
+        struct OptionGroup: TwoStrWrapper {};
         struct MultiOptionPolicy {
             CLI::MultiOptionPolicy policy;
         };
@@ -142,6 +156,11 @@ namespace CLI26 {
         struct IgnoreUnderscore {
             constexpr void set_flag(Flags &flags) const {
                 flags.ignore_underscore = true;
+            }
+        };
+        struct Required {
+            constexpr void set_flag(Flags &flags) const {
+                flags.required = true;
             }
         };
         struct Ignore {};
@@ -308,10 +327,21 @@ namespace CLI26 {
         /// @param app The CLI::App instance to configure
         /// @param options The options struct to populate with parsed values
         template <typename T>
-        void parse_options(CLI::App &app, T &options) {
+        void parse_options(CLI::App &app, T &options, MapOptT &map_opt) {
             constexpr auto access_ctx = std::meta::access_context::current();
             auto all_annotations = get_all_option_annotations<T>();
-            MapOptT map_opt;
+
+            constexpr auto r = std::define_static_array(annotations_of_with_type(^^T, ^^RequireOption));
+            if constexpr (r.size() > 0)
+            {
+                constexpr auto req_anno = r[r.size()-1];
+                constexpr auto req_value = std::meta::extract<RequireOption>(req_anno);
+                if (req_value.two_args)
+                    app.require_option(req_value.value_min, req_value.value_max);
+                else
+                    app.require_option(req_value.value_min);
+            }
+
             unsigned int index = 0;
             template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^T, access_ctx)))
             {
@@ -321,8 +351,19 @@ namespace CLI26 {
                 constexpr std::string_view identifier = identifier_of(member);
                 // std::println("Processing member: {}", identifier);
                 OptionAnnotations &option_annotations = find_option_annotation(identifier, index, all_annotations);
+                index++;
                 if (option_annotations.ignore)
                     continue;
+
+                constexpr auto opt_group = std::define_static_array(annotations_of_with_type(member, ^^OptionGroup));
+                if constexpr (opt_group.size() > 0)
+                {
+                    constexpr auto anno = opt_group[opt_group.size()-1];
+                    constexpr auto value = std::meta::extract<OptionGroup>(anno);
+                    auto *group = app.add_option_group(value.text1, value.text2);
+                    details::parse_options(*group, options.[:member:], map_opt);
+                    continue;
+                }
 
                 constexpr auto mt = type_of(member);
                 // constexpr std::string_view tname = display_string_of(mt);
@@ -347,13 +388,16 @@ namespace CLI26 {
                         option_added_as_flag = true;
                     }
                 }
-                if (!option_added_as_flag) {
-                    if (option_annotations.flags.as_flag) {
-                        throw std::runtime_error("Option type does not support flags: " + std::string(identifier));
-                    }
-                    opt = app.add_option(option_name, options.[:member:], option_annotations.description);
-                    if (!has_default_member_initializer(member) && !member_is_optional) {
-                        opt->required();
+                if constexpr (opt_group.size() == 0)  // Prevent compiler from generating code for add_option on an inappropriate type
+                {
+                    if (!option_added_as_flag) {
+                        if (option_annotations.flags.as_flag) {
+                            throw std::runtime_error("Option type does not support flags: " + std::string(identifier));
+                        }
+                        opt = app.add_option(option_name, options.[:member:], option_annotations.description);
+                        if ((!has_default_member_initializer(member) && !member_is_optional) || option_annotations.flags.required) {
+                            opt->required();
+                        }
                     }
                 }
                 option_annotations.cli_option = opt;
@@ -393,7 +437,6 @@ namespace CLI26 {
                         opt->expected(ep.value_min);
                     }
                 }
-                ++index;
             }
             // Now that we know all labels, we can set the needs and excludes relationships for each option
             set_needs_excludes(map_opt, all_annotations);
@@ -474,11 +517,27 @@ namespace CLI26 {
     {
         return {value_min, value_max, true};
     }
+    consteval details::OptionGroup
+    add_option_group(std::string_view name, std::string_view description="")
+    {
+        return {std::define_static_string(name), std::define_static_string(description)};
+    }
+    consteval details::RequireOption
+    require_option(int value)
+    {
+        return {value, value, false};
+    }
+    consteval details::RequireOption
+    require_option(int value_min, int value_max)
+    {
+        return {value_min, value_max, true};
+    }
     inline constexpr details::CaptureDefaultStr capture_default_str{};
     inline constexpr details::AsOption as_option{};
     inline constexpr details::AsFlag as_flag{};
     inline constexpr details::IgnoreCase ignore_case{};
     inline constexpr details::IgnoreUnderscore ignore_underscore{};
+    inline constexpr details::Required required{};
     inline constexpr details::Ignore ignore{};
 
     template <details::HasSetFlag... T>
@@ -501,7 +560,7 @@ namespace CLI26 {
         if (!chars.app_name.empty()) {
             app.name(chars.app_name);
         }
-
-        details::parse_options(app, options);
+        details::MapOptT map_opt;
+        details::parse_options(app, options, map_opt);
     } // get_app<T>
 } // namespace CLI26
