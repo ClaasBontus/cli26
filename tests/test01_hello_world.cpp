@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 {
     Options options;
     CLI::App app;
-    CLI26::get_app(app, options);
+    CLI26::add_content(app, options);
     CLI11_PARSE(app, argc, argv);
 
     std::println("App name: {}", app.get_name());

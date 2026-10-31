@@ -70,6 +70,9 @@ namespace CLI26 {
         /// @brief Parameters used for CLI11-function 'require_option'
         struct RequireOption: OneOrTwo<int> {};
 
+        /// @brief Parameters used for CLI11-function 'require_subcommand'
+        struct RequireSubcommand: OneOrTwo<int> {};
+
         /// @brief Summarizes annotations specified for an option
         struct OptionAnnotations {
             std::string identifier;  ///< The name of the variable associated with the option
@@ -124,6 +127,7 @@ namespace CLI26 {
         struct Excludes: StrWrapper {};
         struct Group: StrWrapper {};
         struct OptionGroup: TwoStrWrapper {};
+        struct Subcommand: TwoStrWrapper {};
         struct MultiOptionPolicy {
             CLI::MultiOptionPolicy policy;
         };
@@ -167,6 +171,17 @@ namespace CLI26 {
 
 
         /// @section Functions
+
+        // template <typename T>
+        // constexpr std::optional<T>
+        // extract_attribute_value(std::meta::info const &member) {
+        //     constexpr auto anno = std::define_static_array(annotations_of_with_type(member, ^^T));
+        //     if constexpr (anno.size() > 0) {
+        //         return std::meta::extract<T>(anno[anno.size() - 1]);
+        //     } else {
+        //         return std::nullopt;
+        //     }
+        // }
 
         /// @brief Analyzes annotations of struct T
         /// @tparam T The type of the struct to analyze annotations from
@@ -331,15 +346,25 @@ namespace CLI26 {
             constexpr auto access_ctx = std::meta::access_context::current();
             auto all_annotations = get_all_option_annotations<T>();
 
-            constexpr auto r = std::define_static_array(annotations_of_with_type(^^T, ^^RequireOption));
-            if constexpr (r.size() > 0)
+            constexpr auto r_o = std::define_static_array(annotations_of_with_type(^^T, ^^RequireOption));
+            if constexpr (r_o.size() > 0)
             {
-                constexpr auto req_anno = r[r.size()-1];
+                constexpr auto req_anno = r_o[r_o.size()-1];
                 constexpr auto req_value = std::meta::extract<RequireOption>(req_anno);
                 if (req_value.two_args)
                     app.require_option(req_value.value_min, req_value.value_max);
                 else
                     app.require_option(req_value.value_min);
+            }
+            constexpr auto r_s = std::define_static_array(annotations_of_with_type(^^T, ^^RequireSubcommand));
+            if constexpr (r_s.size() > 0)
+            {
+                constexpr auto anno = r_s[r_s.size()-1];
+                constexpr auto value = std::meta::extract<RequireSubcommand>(anno);
+                if (value.two_args)
+                    app.require_subcommand(value.value_min, value.value_max);
+                else
+                    app.require_subcommand(value.value_min);
             }
 
             unsigned int index = 0;
@@ -352,7 +377,8 @@ namespace CLI26 {
                 // std::println("Processing member: {}", identifier);
                 OptionAnnotations &option_annotations = find_option_annotation(identifier, index, all_annotations);
                 index++;
-                if (option_annotations.ignore)
+                constexpr auto ignore_attribute = std::define_static_array(annotations_of_with_type(member, ^^Ignore));
+                if constexpr (ignore_attribute.size() > 0)
                     continue;
 
                 constexpr auto opt_group = std::define_static_array(annotations_of_with_type(member, ^^OptionGroup));
@@ -364,6 +390,18 @@ namespace CLI26 {
                     details::parse_options(*group, options.[:member:], map_opt);
                     continue;
                 }
+
+                constexpr auto subcommand = std::define_static_array(annotations_of_with_type(member, ^^Subcommand));
+                if constexpr (subcommand.size() > 0)
+                {
+                    constexpr auto anno = subcommand[subcommand.size()-1];
+                    constexpr auto value = std::meta::extract<Subcommand>(anno);
+                    auto *sub = app.add_subcommand(value.text1, value.text2);
+                    details::parse_options(*sub, options.[:member:], map_opt);
+                    continue;
+                }
+
+                constexpr bool unreach = opt_group.size() > 0 || subcommand.size() > 0 || ignore_attribute.size() > 0; // following is unreachable
 
                 constexpr auto mt = type_of(member);
                 // constexpr std::string_view tname = display_string_of(mt);
@@ -388,7 +426,7 @@ namespace CLI26 {
                         option_added_as_flag = true;
                     }
                 }
-                if constexpr (opt_group.size() == 0)  // Prevent compiler from generating code for add_option on an inappropriate type
+                if constexpr (!unreach)  // Prevent compiler from generating code for add_option on an inappropriate type
                 {
                     if (!option_added_as_flag) {
                         if (option_annotations.flags.as_flag) {
@@ -522,6 +560,11 @@ namespace CLI26 {
     {
         return {std::define_static_string(name), std::define_static_string(description)};
     }
+    consteval details::Subcommand
+    add_subcommand(std::string_view name, std::string_view description="")
+    {
+        return {std::define_static_string(name), std::define_static_string(description)};
+    }
     consteval details::RequireOption
     require_option(int value)
     {
@@ -529,6 +572,16 @@ namespace CLI26 {
     }
     consteval details::RequireOption
     require_option(int value_min, int value_max)
+    {
+        return {value_min, value_max, true};
+    }
+    consteval details::RequireSubcommand
+    require_subcommand(int value)
+    {
+        return {value, value, false};
+    }
+    consteval details::RequireSubcommand
+    require_subcommand(int value_min, int value_max)
     {
         return {value_min, value_max, true};
     }
@@ -550,8 +603,12 @@ namespace CLI26 {
 
     /// @section Main
 
+    /// @brief app gets extended and modified based on the contents of options.
+    /// @tparam T The type of the options struct.
+    /// @param app The CLI11 app to which options, flags and settings will be added.
+    /// @param options Object of type T with variables and attributes describing the target CLI.
     template <typename T>
-    void get_app(CLI::App &app, T &options)
+    void add_content(CLI::App &app, T &options)
     {
         details::StructChars chars = details::get_struct_chars<T>();
         if (!chars.app_description.empty()) {
@@ -562,5 +619,5 @@ namespace CLI26 {
         }
         details::MapOptT map_opt;
         details::parse_options(app, options, map_opt);
-    } // get_app<T>
+    } // add_content<T>
 } // namespace CLI26
