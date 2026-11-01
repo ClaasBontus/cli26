@@ -57,6 +57,7 @@ int main(int argc, char **argv)
     Options options;
     CLI::App app;
     CLI26::add_content(app, options);
+    app.set_help_all_flag("--help-all", "Expand all help");
     CLI11_PARSE(app, argc, argv);
 
     std::println("Options: {}", options);
