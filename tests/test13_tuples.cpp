@@ -15,6 +15,9 @@ Options
     [[=params(capture_default_str)]]
     std::tuple<int, double> int_double={0, 0.0};
 
+    [[=option_description("Optional triple of values")]]
+    [[=option_name("-t,--triple")]]
+    std::optional<std::tuple<int, double, int>> triple;
 };
 
 template <> struct std::formatter<Options> : UniversalFormatter { };

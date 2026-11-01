@@ -9,22 +9,19 @@ struct
 [[=app_description("Using needs and excludes annotations")]]
 Options
 {
-    [[=option_description("A string with a label")]]
-    [[=label("name_label")]]
-    [[=needs("age_label")]]
+    [[=option_description("A string")]]
+    [[=needs("--age")]]
     std::optional<std::string> name;
 
     [[=option_description("An int option that requires name")]]
-    [[=label("age_label")]]
-    [[=needs("name_label")]]
+    [[=needs("--name")]]
     std::optional<int> age;
 
-    [[=option_description("Just a string with label")]]
-    [[=label("java_label")]]
+    [[=option_description("Just another string")]]
     std::optional<std::string> java;
 
     [[=option_description("A string with exclusion")]]
-    [[=excludes("java_label")]]
+    [[=excludes("--java")]]
     std::optional<std::string> programmer;
 };
 

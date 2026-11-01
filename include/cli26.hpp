@@ -80,8 +80,6 @@ namespace CLI26 {
             std::string name;
             std::string envname;
             //
-            std::string label;  ///< The label used to reference the option
-            //
             std::vector<std::string> needs;
             std::vector<std::string> excludes;
             //
@@ -122,7 +120,6 @@ namespace CLI26 {
         struct OptionDescription: StrWrapper {};
         struct OptionName: StrWrapper {};
         struct EnvName: StrWrapper {};
-        struct Label: StrWrapper {};
         struct Needs: StrWrapper {};
         struct Excludes: StrWrapper {};
         struct Group: StrWrapper {};
@@ -208,14 +205,6 @@ namespace CLI26 {
 
         using MapOptT = std::map<std::string, CLI::Option*>;
 
-        void insert_option_by_label(MapOptT &map_opt, const std::string &label, CLI::Option *opt) {
-            if (auto it = map_opt.find(label); it != map_opt.end()) {
-                if (it->second == opt) return;
-                throw std::runtime_error("Option with label '" + label + "' already exists.");
-            }
-            map_opt[label] = opt;
-        } // insert_option_by_label
-
         /// @brief Steps through all non-static data members of struct T and collects information from their annotations
         /// @tparam T The type of the struct to analyze
         /// @return A vector of OptionAnnotations containing the collected information
@@ -250,11 +239,6 @@ namespace CLI26 {
                 {
                     constexpr auto value = std::meta::extract<EnvName>(anno);
                     o_anno.envname = value.text;
-                }
-                template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Label)))
-                {
-                    constexpr auto value = std::meta::extract<Label>(anno);
-                    o_anno.label = value.text;
                 }
                 template for (constexpr auto anno : std::define_static_array(annotations_of_with_type(member, ^^Needs)))
                 {
@@ -310,32 +294,29 @@ namespace CLI26 {
         } // find_option_annotation
 
         /// @brief Calls needs and excludes functions on CLI options based on annotations
-        /// @param map_opt Labels associated with CLI option pointers
+        /// @param app The CLI::App instance containing the options
         /// @param option_annotations Vector containing all option annotations
-        void set_needs_excludes(MapOptT &map_opt, std::vector<OptionAnnotations> const &option_annotations) {
+        void set_needs_excludes(CLI::App &app, std::vector<OptionAnnotations> const &option_annotations) {
             for (auto const &anno : option_annotations) {
                 if (anno.ignore)
                     continue;
                 for (auto const &need : anno.needs) {
-                    auto trgt_opt = map_opt.find(need);
-                    if (trgt_opt == map_opt.end())
-                        throw std::runtime_error("Needs label not found: " + need + " for option: " + anno.identifier);
+                    auto trgt_opt = app.get_option(need);
                     auto ptr = anno.cli_option;
                     if (!ptr)
                         throw std::runtime_error("(needs) CLI option pointer is null for option: " + anno.identifier);
-                    anno.cli_option->needs(trgt_opt->second);
+                    ptr->needs(trgt_opt);
                 }
                 for (auto const &exclude : anno.excludes) {
-                    auto trgt_opt = map_opt.find(exclude);
-                    if (trgt_opt == map_opt.end())
-                        throw std::runtime_error("Excludes label not found: " + exclude + " for option: " + anno.identifier);
+                    auto trgt_opt = app.get_option(exclude);
                     auto ptr = anno.cli_option;
                     if (!ptr)
                         throw std::runtime_error("(excludes) CLI option pointer is null for option: " + anno.identifier);
-                    ptr->excludes(trgt_opt->second);
+                    ptr->excludes(trgt_opt);
                 }
             }
         } // set_needs_excludes
+
 
         /// @brief Steps through all non-static data members of the options struct T and configures the CLI::App instance accordingly
         /// @tparam T The type of the options struct
@@ -439,9 +420,6 @@ namespace CLI26 {
                     }
                 }
                 option_annotations.cli_option = opt;
-                if (!option_annotations.label.empty()) {
-                    insert_option_by_label(map_opt, option_annotations.label, opt);
-                }
                 if (!option_annotations.envname.empty()) {
                     opt->envname(option_annotations.envname);
                 }
@@ -476,9 +454,10 @@ namespace CLI26 {
                     }
                 }
             }
-            // Now that we know all labels, we can set the needs and excludes relationships for each option
-            set_needs_excludes(map_opt, all_annotations);
+            // Now that all options are added, we can set the needs and excludes relationships for each option
+            set_needs_excludes(app, all_annotations);
         } // parse_options<T>
+
     } // namespace details
 
 
@@ -507,11 +486,6 @@ namespace CLI26 {
     }
     consteval details::EnvName
     envname(std::string_view s)
-    {
-        return {std::define_static_string(s)};
-    }
-    consteval details::Label
-    label(std::string_view s)
     {
         return {std::define_static_string(s)};
     }

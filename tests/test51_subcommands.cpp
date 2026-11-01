@@ -60,6 +60,9 @@ int main(int argc, char **argv)
     CLI11_PARSE(app, argc, argv);
 
     std::println("Options: {}", options);
+    std::println("Parsed subcommands:");
+    for (const auto &subcommand : app.get_subcommands())
+        std::println("  {}", subcommand->get_name());
 
     return 0;
 } // main
