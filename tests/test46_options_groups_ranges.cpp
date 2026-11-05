@@ -25,7 +25,7 @@ struct MinMaxStep
 
 
 struct
-[[=app_description("Definition of options groups")]]
+[[=app_description("Either one or the other option group")]]
 [[=require_option(1)]]
 Options
 {

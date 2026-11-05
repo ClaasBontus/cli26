@@ -9,8 +9,13 @@
 
 using namespace CLI26;
 
+constexpr auto description = R"(
+Test various datatypes.
+Just a test for various datatypes.
+)";
+
 struct
-[[=app_description("Test various datatypes")]]
+[[=app_description(description)]]
 Options
 {
     [[=params(as_option, ignore_case, ignore_underscore)]]

@@ -37,7 +37,7 @@ Target
 
 
 struct
-[[=app_description("Definition of options groups")]]
+[[=app_description("Options groups with require_option")]]
 Options
 {
     [[=add_option_group("output_format", "formatting type for output")]]

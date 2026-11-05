@@ -41,9 +41,11 @@ Options
     int verbose;
 
     [[=add_subcommand("add", "Add files")]]
+    [[=params(ignore_case)]]
     Add add{};
 
     [[=add_subcommand("show", "Show changes")]]
+    [[=params(ignore_case)]]
     Show show{};
 };
 

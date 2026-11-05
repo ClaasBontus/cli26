@@ -6,8 +6,7 @@
 using namespace CLI26;
 
 struct
-[[=app_name("test01_hello_world")]]
-[[=app_description("Hello World App")]]
+[[=app_description("Evaluate environment variable")]]
 Options
 {
     [[=option_name("-n,--name")]]

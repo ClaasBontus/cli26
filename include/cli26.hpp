@@ -73,6 +73,14 @@ namespace CLI26 {
         /// @brief Parameters used for CLI11-function 'require_subcommand'
         struct RequireSubcommand: OneOrTwo<int> {};
 
+        struct Fallthrough {
+            bool value;
+        };
+
+        struct SubcommandFallthrough {
+            bool value;
+        };
+
         /// @brief Summarizes annotations specified for an option
         struct OptionAnnotations {
             std::string identifier;  ///< The name of the variable associated with the option
@@ -101,7 +109,6 @@ namespace CLI26 {
             std::string app_description;
             std::string app_name;
         }; // struct StructChars
-
 
         /// @section Annotation tags
 
@@ -179,6 +186,24 @@ namespace CLI26 {
         //         return std::nullopt;
         //     }
         // }
+
+        /// @brief Applies the given option annotations to the specified CLI::App instance.
+        /// @param app The CLI::App instance to apply annotations to
+        /// @param o_anno The option annotations to apply obtained by parsing annotations
+        void apply_app_annotations(CLI::App *app, OptionAnnotations const &o_anno) {
+            if (o_anno.group.has_value()) {
+                app->group(o_anno.group.value());
+            }
+            if (o_anno.flags.ignore_case) {
+                app->ignore_case();
+            }
+            if (o_anno.flags.ignore_underscore) {
+                app->ignore_underscore();
+            }
+            if (o_anno.flags.required) {
+                app->required();
+            }
+        } // apply_app_annotations
 
         /// @brief Analyzes annotations of struct T
         /// @tparam T The type of the struct to analyze annotations from
@@ -347,6 +372,20 @@ namespace CLI26 {
                 else
                     app.require_subcommand(value.value_min);
             }
+            constexpr auto r_f = std::define_static_array(annotations_of_with_type(^^T, ^^Fallthrough));
+            if constexpr (r_f.size() > 0)
+            {
+                constexpr auto anno = r_f[r_f.size()-1];
+                constexpr auto value = std::meta::extract<Fallthrough>(anno);
+                app.fallthrough(value.value);
+            }
+            constexpr auto r_sf = std::define_static_array(annotations_of_with_type(^^T, ^^SubcommandFallthrough));
+            if constexpr (r_sf.size() > 0)
+            {
+                constexpr auto anno = r_sf[r_sf.size()-1];
+                constexpr auto value = std::meta::extract<SubcommandFallthrough>(anno);
+                app.subcommand_fallthrough(value.value);
+            }
 
             unsigned int index = 0;
             template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^T, access_ctx)))
@@ -368,6 +407,7 @@ namespace CLI26 {
                     constexpr auto anno = opt_group[opt_group.size()-1];
                     constexpr auto value = std::meta::extract<OptionGroup>(anno);
                     auto *group = app.add_option_group(value.text1, value.text2);
+                    apply_app_annotations(group, option_annotations);
                     details::parse_options(*group, options.[:member:], map_opt);
                     continue;
                 }
@@ -378,6 +418,7 @@ namespace CLI26 {
                     constexpr auto anno = subcommand[subcommand.size()-1];
                     constexpr auto value = std::meta::extract<Subcommand>(anno);
                     auto *sub = app.add_subcommand(value.text1, value.text2);
+                    apply_app_annotations(sub, option_annotations);
                     details::parse_options(*sub, options.[:member:], map_opt);
                     continue;
                 }
@@ -459,6 +500,8 @@ namespace CLI26 {
         } // parse_options<T>
 
     } // namespace details
+
+
 
 
     /// @section Annotation functions and tags
@@ -558,6 +601,16 @@ namespace CLI26 {
     require_subcommand(int value_min, int value_max)
     {
         return {value_min, value_max, true};
+    }
+    consteval details::Fallthrough
+    fallthrough(bool value=true)
+    {
+        return {value};
+    }
+    consteval details::SubcommandFallthrough
+    subcommand_fallthrough(bool value=true)
+    {
+        return {value};
     }
     inline constexpr details::CaptureDefaultStr capture_default_str{};
     inline constexpr details::AsOption as_option{};
