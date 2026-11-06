@@ -1,19 +1,19 @@
-# CLI26 - Easy command line parsing based on CLI11
+# CLI26 - Easy command-line parsing based on CLI11
 
-CLI26 is a wrapper around [CLI11](https://github.com/CLIUtils/CLI11) inspired by [clap](https://docs.rs/clap/latest/clap/) and [SimpleParsing](https://github.com/lebrice/SimpleParsing/). It yields the full functionality of CLI11 while providing a structured way for the most common tasks.
-CLI26 makes intensive use of C++-26 reflection. It was tested with gcc-16.
+CLI26 is a wrapper around [CLI11](https://github.com/CLIUtils/CLI11), inspired by [clap](https://docs.rs/clap/latest/clap/) and [SimpleParsing](https://github.com/lebrice/SimpleParsing/). It provides CLI11's full functionality while offering a structured interface for common tasks.
+CLI26 makes extensive use of C++26 reflection. It has been tested with gcc-16.
 
 ## Installation
 CLI26 consists of a single header `cli26.hpp`. Copy that header into your project and make sure [CLI11.hpp](https://github.com/CLIUtils/CLI11/releases) is in your include path.
 
-For compiling the tests run
+To compile the tests, run:
 ```cmake
 cmake -S . -B build
 cmake --build build -j
 ```
 
 ## Hello World
-You want a simple command line interface (CLI) with just a boolean flag and an integer that has a help message like
+Suppose you want a simple command-line interface (CLI) with a boolean flag and an integer, plus a help message like this:
 ```
 My first App
 
@@ -26,7 +26,7 @@ OPTIONS:
   -f,     --flag              Example of a bool flag
           --count INT [-1]    Example of an optional int with default value
 ```
-Just define a `struct` like
+Define a `struct` like this:
 ```c++
 #include <cli26.hpp>
 
@@ -54,29 +54,29 @@ int main(int argc, char **argv)
     CLI11_PARSE(app, argc, argv);
 }
 ```
-It all happens in `add_content`. Therein various options and parameters of `app` are set based on the variables
-and attributes in `struct Options`. If no `option_name` is specified `add_content` determines one based on the
-variable's name. With variable `count` in the example we illustrate this. After command line parsing variables in `struct Options` will contain the parsing results.
+The magic happens in function `add_content`, which sets various options and parameters of `app` based on the variables
+and attributes in `struct Options`. If no `option_name` is specified for a member variable, the library derives one
+from the variable's name. The `count` variable in the `struct` is an example. After command-line parsing, the variables
+in `struct Options` contain the results.
 
-Folder [tests](tests) contains various examples for how to utilize CLI26.
+The [tests](tests) folder contains examples of how to use CLI26.
 
 ## Details
 ### Naming and params
-If attribute `CLI26::option_name` is not specified for a variable CLI26 constructs it from the variable's name.
-In case the latter consists of a single character `option_name` will be of type `-x` with a single dash. Otherwise
-it will be of type `--name`. For positional options use `option_name("name")` without any dash.
+If the `CLI26::option_name` attribute is not specified for a variable, CLI26 derives it from the variable's name.
+If the name consists of a single character, the option name takes the form `-x`, with a single dash. Otherwise,
+it takes the form `--name`. For positional options, use `option_name("name")` without a dash.
 
-Per default CLI26 assumes a parameter is optional if it has a default value or is of type `std::optional<T>`. It
-can be enforced to be required via tag `required`:
+By default, CLI26 treats a parameter as optional if it has a default value or is of type `std::optional<T>`. The `required` tag overrides this default:
 ```c++
     [[=params(required)]]
     std::string name="";
 ```
-Function `CLI26::params` accepts an arbitrary number of arguments. Here it accepts tags `ignore_case`,
-`ignore_underscore`, `capture_default_str`, which correspond to CLI11 functions with identical names.
+The `CLI26::params` function accepts any number of arguments. It accepts the tags `ignore_case`,
+`ignore_underscore`, and `capture_default_str`, which correspond to CLI11 functions with the same names.
 
-Per default booleans are treated as flags all other types of variables as options. This behavior can be
-changed via params `as_option` and `as_flag`:
+By default, booleans are treated as flags and all other variable types as options. This behavior can be
+changed using the `as_option` and `as_flag` parameters:
 ```c++
     [[=params(as_option, ignore_case)]]
     bool colored;
@@ -86,18 +86,18 @@ changed via params `as_option` and `as_flag`:
     int verbose;
 ```
 
-If you need an element in your options struct that is not part of the CLI tag it with `ignore`:
+To keep a member of your options struct out of the command-line interface, tag it with `ignore`:
 ```c++
     [[=CLI26::ignore]]
     double ignored_value;
 ```
 
 ### Further attributes
-Appreciating CLI11's large number of configuration possibilities CLI26 provides attributes
+To expose CLI11's many configuration options, CLI26 provides the following attributes:
 `needs(std::string_view)`, `excludes(std::string_view)`, `group(std::string_view)`,
 `delimiter(char)`, `allow_extra_args(bool)`, `expected(int,int)`, `multi_option_policy(CLI::MultiOptionPolicy)`,
 `envname(std::string_view)`.
-They all have their named equivalent in CLI11 with identical names.
+Each corresponds to a CLI11 setting with the same name.
 ```c++
     [[=expected(2)]]
     [[=delimiter(',')]]
@@ -113,15 +113,14 @@ They all have their named equivalent in CLI11 with identical names.
 ```
 
 ## Option groups and subcommands
-With attribute `group` we can manage the order in which options are listed in the help output.
-Option groups go a step further. They allow specific sets of options to be composed
-and controlled as a collective. Subcommands on the other hand are keywords that
-invoke a new set of options and features. Here `git` serves as a well known example with its
-subcommands `add`, `commit`, `log`, etc.
+The `group` attribute controls the order in which options appear in the help output.
+Option groups go a step further: they let you compose and manage sets of options collectively. Subcommands,
+on the other hand, are keywords that invoke a new set of options and features. The `git` command is a well-known example,
+with subcommands such as `add`, `commit`, and `log`.
 
-With CLI26 you add option groups and subcommands by definition of additional structs.
-Here is an example with two subcommands `range` and `file`, where `range` uses an option group
-for making sure the range is specified in exactly one of two possible ways.
+In CLI26, you add option groups and subcommands by defining additional structs.
+The following example has two subcommands, `range` and `file`. The `range` subcommand uses an option group
+to ensure that the range is specified in exactly one of two ways.
 ```c++
 struct MinMaxStep
 {
@@ -185,6 +184,9 @@ int main(int argc, char **argv)
     CLI11_PARSE(app, argc, argv);
 } // main
 ```
-Notice the `require_option(1)` attribute specified for `struct Range`. It makes sure we either say
+Note the `require_option(1)` attribute on `struct Range`. It ensures that users specify either
 `myapp range -t 0 12 2` or `myapp range -m 0 -M 12 -s 2`.
+
+Other attributes available on structs include `require_subcommand(int,int)`, `fallthrough(bool)`, and `subcommand_fallthrough(bool)`.
+These correspond to identically named CLI11 settings and are defined for objects of type `App`.
 
