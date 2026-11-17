@@ -10,6 +10,7 @@ the programs are summarized in the following list.
 * [test15](test15_environment.cpp): Uses `envname` for setting an option via environment variable.
 * [test17](test17_flags.cpp): Use booleans as flag or option, use integers as flag. `multi_option_policy`, and
   `option_name("-1{1},-2{2},-3{3}")`.
+* [test19](test19_inheritance.cpp): Use inheritance for composing options.
 * [test21](test21_needs_excludes.cpp): Set dependencies between options via `needs` and `excludes`.
 * [test31](test31_groups.cpp): Use `group` to sort options in the help output, use `group("")` for hiding an option.
 * [test41](test41_options_groups.cpp): The basics of option groups via `add_option_group`.

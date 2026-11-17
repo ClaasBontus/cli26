@@ -306,10 +306,8 @@ namespace CLI26 {
         } // get_all_option_annotations
 
         OptionAnnotations &
-        find_option_annotation(std::string_view identifier, unsigned int index,
+        find_option_annotation(std::string_view identifier,
                                std::vector<OptionAnnotations> &all_annotations) {
-            if (index < all_annotations.size() && all_annotations[index].identifier == identifier)
-                return all_annotations[index];
             for (auto &anno : all_annotations) {
                 if (anno.identifier == identifier) {
                     return anno;
@@ -387,7 +385,12 @@ namespace CLI26 {
                 app.subcommand_fallthrough(value.value);
             }
 
-            unsigned int index = 0;
+            // Process base classes (inheritance)
+            template for (constexpr auto base : define_static_array(bases_of(^^T, access_ctx)))
+            {
+                details::parse_options(app, options.[:base:], map_opt);
+            }
+
             template for (constexpr auto member : define_static_array(nonstatic_data_members_of(^^T, access_ctx)))
             {
                 if constexpr (!has_identifier(member))
@@ -395,8 +398,7 @@ namespace CLI26 {
 
                 constexpr std::string_view identifier = identifier_of(member);
                 // std::println("Processing member: {}", identifier);
-                OptionAnnotations &option_annotations = find_option_annotation(identifier, index, all_annotations);
-                index++;
+                OptionAnnotations &option_annotations = find_option_annotation(identifier, all_annotations);
                 constexpr auto ignore_attribute = std::define_static_array(annotations_of_with_type(member, ^^Ignore));
                 if constexpr (ignore_attribute.size() > 0)
                     continue;
