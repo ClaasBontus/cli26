@@ -1,4 +1,4 @@
-# CLI26 - Easy command-line parsing based on CLI11
+# CLI26: Modern Command-Line Parsing, Powered by CLI11
 
 CLI26 is a wrapper around [CLI11](https://github.com/CLIUtils/CLI11), inspired by [clap](https://docs.rs/clap/latest/clap/) and [SimpleParsing](https://github.com/lebrice/SimpleParsing/). It provides CLI11's full functionality while offering a structured interface for common tasks.
 CLI26 makes extensive use of C++26 reflection. It has been tested with gcc-16.
