@@ -63,6 +63,9 @@ Options
 
     [[=ignore]]
     double ignored_value;
+
+private:
+    std::string also_ignored;
 };
 
 template <> struct std::formatter<Options> : UniversalFormatter { };

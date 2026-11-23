@@ -86,10 +86,13 @@ changed using the `as_option` and `as_flag` parameters:
     int verbose;
 ```
 
-To keep a member of your options struct out of the command-line interface, tag it with `ignore`:
+To keep a member of your options struct out of the command-line interface, tag it with `ignore` or make it
+private:
 ```c++
     [[=CLI26::ignore]]
     double ignored_value;
+private:
+    std::string also_ignored;
 ```
 
 ### Further attributes
